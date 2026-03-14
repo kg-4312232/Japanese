@@ -1,0 +1,625 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Vocabulary Quiz (Sheet or Local XLSX)</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<style>
+  :root {
+    --bg:#0b0c10; --card:#121318; --text:#e8e8e8; --muted:#b8b8b8;
+    --accent:#7aa2f7; --ok:#98c379; --warn:#e5c07b; --bad:#e06c75; --divider:#2a2d34;
+  }
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);
+    font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;}
+  .container{max-width:800px;margin:0 auto;padding:16px;}
+  .card{background:var(--card);border-radius:16px;padding:16px;box-shadow:0 6px 20px rgba(0,0,0,.25);}
+  h1{font-size:1.4rem;margin:0 0 12px;}
+  input[type="text"],input[type="number"]{
+    width:min(100%,420px);max-width:100%;box-sizing:border-box;
+    padding:10px 12px;border-radius:10px;border:1px solid #30343b;
+    background:#0f1116;color:var(--text);font-size:16px;
+  }
+  .row{display:grid;grid-template-columns:150px 1fr;gap:8px;align-items:center;margin:6px 0;}
+  @media(max-width:560px){.row{grid-template-columns:1fr;}.row label{margin-bottom:4px;}}
+  .prompt{font-size:24px;line-height:1.35;margin:6px 0;}
+  .kanaBig{font-size:48px;line-height:1.2;}
+  .romaji{color:var(--muted);font-size:16px;margin-top:2px;}
+  .muted{color:var(--muted);}
+  .buttons{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;}
+  button{padding:10px 14px;border-radius:12px;border:1px solid #2d3340;background:#1a1e27;color:var(--text);font-size:16px;cursor:pointer;}
+  button.primary{background:var(--accent);color:#0b0c10;border-color:transparent;}
+  button:disabled{opacity:.6;cursor:not-allowed;}
+  .divider{height:1px;background:var(--divider);margin:16px 0;}
+  .feedback{background:#10131a;border:1px dashed #2a2f3a;padding:10px 12px;border-radius:10px;margin-top:10px;}
+  .ok{color:var(--ok);} .warn{color:var(--warn);} .bad{color:var(--bad);}
+  .progress{display:flex;justify-content:space-between;color:var(--muted);font-size:14px;margin-top:6px;}
+  .summary{margin-top:14px;}
+  .topbar{display:flex;flex-direction:column;gap:8px;margin-bottom:12px;}
+  .small{font-size:13px;}
+  code{background:#0f1116;padding:2px 6px;border-radius:6px;border:1px solid #2d3340;}
+  .error{color:#e06c75;}
+  .radio{display:flex;gap:16px;align-items:center;flex-wrap:wrap;}
+  .pill{display:inline-block;background:#1a1e27;border:1px solid #2d3340;padding:6px 10px;border-radius:999px;}
+  .subgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+  .final-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;}
+  .notice{color:var(--muted);font-size:13px;margin-top:8px;}
+  .hidden{display:none !important;}
+</style>
+</head>
+<body>
+<div class="container">
+<div class="card">
+  <div class="topbar"><h1>Vocabulary Quiz</h1></div>
+
+  <!-- DATA SOURCE (defaults to XLSX) -->
+  <div id="sourceSection">
+    <div class="row">
+      <label>Data source</label>
+      <div class="radio">
+        <label class="pill"><input type="radio" name="src" value="sheet"> Google Sheet (published)</label>
+        <label class="pill"><input type="radio" name="src" value="xlsx" checked> Local XLSX (Vocab.xlsx)</label>
+      </div>
+    </div>
+    <div id="xlsxPicker" class="row hidden">
+      <label>Choose file</label>
+      <input type="file" id="xlsxFile" accept=".xlsx,.xls" />
+    </div>
+    <div class="small muted" id="sourceHint"></div>
+  </div>
+
+  <!-- MODE + RANGE -->
+  <div id="setup" class="small muted">Preparing…</div>
+
+  <div id="preQuiz" class="hidden">
+    <div class="divider"></div>
+    <div class="row">
+      <label>Mode</label>
+      <div class="radio">
+        <label class="pill"><input type="radio" name="quizmode" value="jp2en" checked> JP → EN (show Kanji + Kana, answer Meaning)</label>
+
+<label class="pill"><input type="radio" name="quizmode" value="en2jp_kana"> EN → JP (show Meaning, answer Kana)</label>
+
+<label class="pill"><input type="radio" name="quizmode" value="en2jp_romaji"> EN → JP (show Meaning, answer Romanji)</label>
+      </div>
+    </div>
+
+    <div class="row">
+      <label>Rows</label>
+      <div class="radio">
+        <label><input type="radio" name="rangeMode" value="all" checked> All</label>
+        <label><input type="radio" name="rangeMode" value="range"> Range</label>
+      </div>
+    </div>
+
+    <div class="subgrid hidden" id="rangeInputs">
+      <div class="row"><label>From</label><input type="number" id="fromNum" min="1" step="1" placeholder="e.g. 10"></div>
+      <div class="row"><label>To</label><input type="number" id="toNum" min="1" step="1" placeholder="e.g. 30"></div>
+    </div>
+
+    <div class="small muted" id="rangeInfo">Rows available: —</div>
+    <div class="buttons"><button class="primary" id="startBtn">Start Quiz</button></div>
+  </div>
+
+  <!-- QUIZ -->
+  <div id="quiz" class="hidden">
+    <div class="progress"><div id="counter"></div><div id="left"></div></div>
+    <div class="divider"></div>
+
+    <div class="row">
+      <label id="promptLabel">Prompt</label>
+      <div>
+        <div class="prompt" id="promptText">—</div>
+        <div class="romaji hidden" id="promptSub">—</div>
+      </div>
+    </div>
+
+    <div class="row"><label id="answerLabel">Your answer</label><input type="text" id="answerInput" autocomplete="off"></div>
+
+    <div class="buttons">
+      <button class="primary" id="submitBtn">Submit</button>
+      <button id="skipBtn">Skip</button>
+      <button id="revealBtn">Reveal</button>
+      <button id="nextBtn" disabled>Next</button>
+    </div>
+
+    <!-- Simplified feedback: single compact line -->
+    <div id="answers" class="feedback hidden">
+      <div id="feedbackLine">—</div>
+    </div>
+
+    <div class="divider"></div>
+    <div class="summary small" id="summary"></div>
+
+    <div class="divider"></div>
+    <div class="summary hidden" id="finalSummary"></div>
+    <div class="final-actions hidden" id="finalActions">
+      <button class="primary" id="restartSameBtn">Restart same test</button>
+      <button id="chooseRangeBtn">Choose different range</button>
+    </div>
+    <div class="notice hidden" id="autoNotice"></div>
+  </div>
+</div>
+</div>
+
+<!-- SheetJS for XLSX parsing -->
+<!-- 1) Try local (works offline if this file exists next to the HTML) -->
+<script src="./xlsx.full.min.js"></script>
+<!-- 2) Fallback to CDN if local file isn't present (requires internet) -->
+<script>
+  if (typeof XLSX === "undefined") {
+    document.write('<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"><\/script>');
+  }
+</script>
+
+<script>
+  /*** CONFIG ***/
+  // Your published Google Sheet (webpage view)
+  const DEFAULT_PUBHTML =
+    "https://docs.google.com/spreadsheets/d/e/2PACX-1vSg3C-sdRk4yB8H0EqW3_R6XEnmBinFc7L6YCBdsEOeyDmJeBIccBvNAYN40VepJlwGLiypPYXzYHJI/pubhtml?gid=0&single=true";
+  const qs = new URLSearchParams(location.search);
+  const INPUT_URL = qs.get("url") || DEFAULT_PUBHTML;
+  // Default local filename to auto-load when hosted via http/https:
+  const LOCAL_XLSX_NAME = "Vocab.xlsx";
+
+  /*** Elements ***/
+  const $ = id => document.getElementById(id);
+  const elSource = $("sourceSection"), elSourceHint = $("sourceHint");
+  const xlsxPickerRow = $("xlsxPicker"), xlsxInput = $("xlsxFile");
+  const elSetup = $("setup"), elPre = $("preQuiz"), elRangeInfo = $("rangeInfo"),
+        elRangeInputs = $("rangeInputs"), inFrom = $("fromNum"), inTo = $("toNum"), btnStart = $("startBtn");
+  const elQuiz = $("quiz"), elCounter = $("counter"), elLeft = $("left"),
+        promptLabel = $("promptLabel"), promptText = $("promptText"),
+        promptSub = $("promptSub"), answerLabel = $("answerLabel"), answerInput = $("answerInput");
+  const bSubmit = $("submitBtn"), bSkip = $("skipBtn"), bReveal = $("revealBtn"), bNext = $("nextBtn");
+  const boxAns = $("answers"), feedbackLine = $("feedbackLine");
+  const elSummary = $("summary"), elFinalSummary = $("finalSummary"), elFinalActions = $("finalActions"),
+        btnRestartSame = $("restartSameBtn"), btnChooseRange = $("chooseRangeBtn"), elAutoNotice = $("autoNotice");
+
+  /*** Utils ***/
+  const hide = el => el.classList.add("hidden");
+  const show = el => el.classList.remove("hidden");
+
+  // CSV (Google Sheet) helpers with fallbacks
+  function toCsvCandidates(u) {
+    try {
+      const url = new URL(u);
+      const gid = url.searchParams.get("gid") || "0";
+      const isPubHtml = url.pathname.endsWith("/pubhtml");
+      const isPub = url.pathname.endsWith("/pub");
+      const isExport = url.pathname.endsWith("/export");
+      let c1, c2;
+      if (isPubHtml) {
+        c1 = `${url.origin}${url.pathname.replace(/\/pubhtml$/, "/pub")}?output=csv&gid=${gid}`;
+        c2 = `${url.origin}${url.pathname.replace(/\/pubhtml$/, "/export")}?format=csv&gid=${gid}`;
+      } else if (isPub) {
+        c1 = `${url.origin}${url.pathname}?output=csv&gid=${gid}`;
+        c2 = `${url.origin}${url.pathname.replace(/\/pub$/, "/export")}?format=csv&gid=${gid}`;
+      } else if (isExport) {
+        c1 = `${url.origin}${url.pathname}?format=csv&gid=${gid}`;
+        c2 = c1;
+      } else {
+        const parts = url.pathname.split("/");
+        const i = parts.indexOf("d");
+        const docId = parts[i + 1];
+        c1 = `${url.origin}/spreadsheets/d/${docId}/export?format=csv&gid=${gid}`;
+        c2 = c1;
+      }
+      return [c1, c2];
+    } catch { return [u]; }
+  }
+  function proxyCandidates(u) {
+    return [
+      `https://r.jina.ai/http://${u.replace(/^https?:\/\//, "")}`,
+      `https://r.jina.ai/https://${u.replace(/^https?:\/\//, "")}`,
+      `https://cors.isomorphic-git.org/${u}`
+    ];
+  }
+  async function fetchTextOnce(u) {
+    const r = await fetch(u, { cache: "no-cache" });
+    if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
+    return await r.text();
+  }
+  async function fetchCsvWithFallback(u) {
+    const [c1, c2] = toCsvCandidates(u);
+    try { return await fetchTextOnce(c1); } catch {}
+    try { return await fetchTextOnce(c2); } catch {}
+    for (const p of proxyCandidates(c1)) { try { return await fetchTextOnce(p); } catch {} }
+    for (const p of proxyCandidates(c2)) { try { return await fetchTextOnce(p); } catch {} }
+    throw new Error("Could not fetch CSV via pub/export or proxies.");
+  }
+
+  /*** Parsers & comparers ***/
+  function normalizeEN(s){return (s||"").toString().trim().toLowerCase()
+           .replace(/[、  ，]/g,",").replace(/[；;]/g,";").replace(/[\s]+/g," ").replace(/[.?!]/g,"").trim();}
+  function normalizeJP(s){return (s||"").toString().trim().toLowerCase()
+           .replace(/[、  ，]/g,",").replace(/[；;]/g,";").replace(/[\s]+/g," ").trim();}
+  function splitVariantsEN(s){s=normalizeEN(s); if(!s) return []; return s.split(/[;,]/).map(x=>x.trim()).filter(Boolean)}
+  function splitVariantsJP(s){s=normalizeJP(s); if(!s) return []; return s.split(/[;,]/).map(x=>x.trim()).filter(Boolean)}
+
+  function compareVariants(userText,goldText, lang){
+    const split = lang==="en" ? splitVariantsEN : splitVariantsJP;
+    const gold=split(goldText), user=split(userText);
+    const ns=x=>x.replace(/\s+/g,"");
+    const gm=new Map(gold.map(g=>[ns(g),g])), um=new Map(user.map(u=>[ns(u),u]));
+    const hits=[], missing=[], extras=[];
+    for(const [k,u] of um) if(gm.has(k)) hits.push(u); else extras.push(u);
+    for(const [k,g] of gm) if(!um.has(k)) missing.push(g);
+    return {hits, missing, extras, total: gold.length, gold};
+  }
+
+  function parseCSV(text){
+    const rows=[]; let cur=[], field="", q=false;
+    for(let i=0;i<text.length;i++){
+      const ch=text[i];
+      if(q){ if(ch=='"'){ if(text[i+1]=='"'){field+='"'; i++;} else {q=false;} } else field+=ch; }
+      else { if(ch=='"') q=true; else if(ch==","){cur.push(field); field="";}
+             else if(ch=="\n"){cur.push(field); rows.push(cur); cur=[]; field="";}
+             else if(ch=="\r"){} else field+=ch; }
+    }
+    if(field.length||cur.length){cur.push(field); rows.push(cur);} return rows;
+  }
+
+  function rowsToObjects(rows){
+    if(!rows.length) return [];
+    const headers=rows[0].map(h=>String(h||"").trim());
+    const idxCol=n=>headers.findIndex(h=>h.toLowerCase()===n.toLowerCase());
+    const iN=idxCol("Number"), iKanji=idxCol("Kanji"), iK=idxCol("Kana"), iR=idxCol("Romanji"), iM=idxCol("Meaning");
+    if([iK,iR,iM].some(i=>i<0)) throw new Error("Missing required columns: Kana, Romanji, Meaning");
+    const out=[];
+    for(let r=1;r<rows.length;r++){
+      const row=rows[r]; if(!row||!row.length) continue;
+      const rec={
+  Number:(row[iN]??"").toString().trim(),
+  Kanji:(iKanji>=0 ? (row[iKanji]??"").toString().trim() : ""),
+  Kana:(row[iK]??"").toString().trim(),
+  Romanji:(row[iR]??"").toString(),
+  Meaning:(row[iM]??"").toString()
+};
+      if(rec.Kana || rec.Meaning) out.push(rec);
+    }
+    return out;
+  }
+  function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a;}
+
+  /*** State ***/
+  let fullData = [], currentSubset = [], data = [], incorrectSubset = [];
+  let idx = -1;
+  let strictCorrect = 0, attempted = 0, partialCorrect = 0, totalFields = 0;
+  let awaitingNext = false, autoRequizDone = false;
+  let quizMode = "jp2en"; // "jp2en" or "en2jp"
+
+  /*** Range & mode UI ***/
+  document.querySelectorAll('input[name="rangeMode"]').forEach(r => {
+    r.addEventListener("change", () => {
+      r.value === "range" && r.checked ? show(elRangeInputs) : hide(elRangeInputs);
+    });
+  });
+  document.querySelectorAll('input[name="quizmode"]').forEach(r => {
+    r.addEventListener("change", () => { quizMode = r.value; });
+  });
+
+  /*** Source selection ***/
+  document.querySelectorAll('input[name="src"]').forEach(r => {
+    r.addEventListener("change", onSourceChange);
+  });
+
+  async function onSourceChange() {
+    const mode = document.querySelector('input[name="src"]:checked')?.value || "xlsx";
+    if (mode === "xlsx") {
+      const isFile = location.protocol === "file:";
+      elSourceHint.textContent = isFile
+        ? "Opened via file:// — browsers block auto-reading sibling files. Please pick Vocab.xlsx below."
+        : `Attempting to auto-load "Vocab.xlsx" from the same folder…`;
+      show(xlsxPickerRow);
+      if (!isFile) {
+        try {
+          await loadXlsxFromUrl(LOCAL_XLSX_NAME);
+          finishSetup(); return;
+        } catch (e) {
+          console.warn("Auto-fetch Vocab.xlsx failed:", e);
+          elSourceHint.innerHTML = `Couldn’t auto-load <code>${LOCAL_XLSX_NAME}</code>. Please choose the file manually.`;
+        }
+      }
+      // Wait for manual file selection
+    } else {
+      hide(xlsxPickerRow);
+      elSourceHint.textContent = "";
+      await loadGoogleSheet();
+      finishSetup();
+    }
+  }
+
+  function finishSetup(){
+    // Remove source picker, show pre-quiz options
+    elSource.remove();
+    hide(elSetup);
+    show(elPre);
+    elRangeInfo.textContent = `Rows available: 1 – ${fullData.length}`;
+    inFrom.min = 1; inFrom.max = fullData.length;
+    inTo.min = 1;   inTo.max = fullData.length;
+  }
+
+  /*** Loaders ***/
+  function failSetup(msg){
+    elSetup.innerHTML = `<div class="error">${msg}</div>`;
+    hide(elPre);
+  }
+
+  async function loadGoogleSheet(){
+    try{
+      show(elSetup); elSetup.textContent = "Loading Google Sheet…";
+      const text = await fetchCsvWithFallback(INPUT_URL);
+      const rows = parseCSV(text);
+      fullData = rowsToObjects(rows);
+      if (!fullData.length) throw new Error("No data rows found.");
+    }catch(e){
+      console.error(e);
+      const isFile = location.protocol === "file:";
+      failSetup(
+        `Failed to load Google Sheet${isFile ? " (opening via file:// can block network requests)" : ""}. `
+        + `Reload and choose “Local XLSX”.`
+      );
+    }
+  }
+
+  async function loadXlsxFromUrl(url){
+    show(elSetup); elSetup.textContent = `Loading ${url}…`;
+    const resp = await fetch(url, { cache: "no-cache" });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const buf = await resp.arrayBuffer();
+    parseXlsxBuffer(buf);
+  }
+
+  function parseXlsxBuffer(buf){
+    const wb = XLSX.read(buf, { type: "array" });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(ws, { header: 1, blankrows: false, defval: "" });
+    fullData = rowsToObjects(rows);
+    if (!fullData.length) throw new Error("No data rows found in the first sheet.");
+  }
+
+  xlsxInput.addEventListener("change", async (ev)=>{
+    const f = ev.target.files?.[0];
+    if (!f) return;
+    try {
+      show(elSetup); elSetup.textContent = "Reading .xlsx…";
+      const buf = await f.arrayBuffer();
+      parseXlsxBuffer(buf);
+      finishSetup();
+    } catch (e) {
+      console.error(e);
+      failSetup("Could not read the .xlsx file. Ensure the first sheet has headers: Number, Kana, Romanji, Meaning.");
+    }
+  });
+
+  /*** Start & quiz flow ***/
+  btnStart.addEventListener("click", () => {
+    const rangeMode = document.querySelector('input[name="rangeMode"]:checked')?.value || "all";
+    quizMode = document.querySelector('input[name="quizmode"]:checked')?.value || "jp2en";
+
+    let subset = fullData.slice();
+    if (rangeMode === "range") {
+      const total = fullData.length;
+      const fromVal = parseInt(inFrom.value, 10);
+      const toVal = parseInt(inTo.value, 10);
+      if (!Number.isInteger(fromVal) || !Number.isInteger(toVal) || fromVal < 1 || toVal < 1 || fromVal > toVal) {
+        alert("Please enter a valid range like 10–30 (From ≤ To, both ≥ 1).");
+        return;
+      }
+      const fromIdx = Math.max(0, fromVal - 1);
+      const toIdx = Math.min(total - 1, toVal - 1);
+      if (fromIdx > toIdx) { alert("Range is outside available rows."); return; }
+      subset = fullData.slice(fromIdx, toIdx + 1);
+    }
+
+    autoRequizDone = false;
+    startQuizWithSubset(subset);
+  });
+
+  function startQuizWithSubset(subset){
+    currentSubset = subset.slice();
+    data = shuffle(subset.slice());
+    incorrectSubset = [];
+    if (!data.length) { alert("No rows selected."); return; }
+
+    strictCorrect = 0; attempted = 0; partialCorrect = 0; totalFields = 0;
+    hide(elPre);
+    show(elQuiz);
+    hide(elFinalSummary); elFinalSummary.innerHTML = "";
+    hide(elFinalActions);
+    hide(elAutoNotice);
+    idx = 0;
+    renderCard();
+  }
+
+  function renderProgress(){ elCounter.textContent=`Card ${idx+1} of ${data.length}`; elLeft.textContent=`${data.length-(idx+1)} left`; }
+
+  function renderCard(){
+    const row = data[idx];
+    if (quizMode === "jp2en") {
+
+  promptLabel.textContent = "Japanese";
+
+  const main = row.Kanji && row.Kanji.length ? row.Kanji : row.Kana;
+
+  promptText.textContent = main || "—";
+  promptText.classList.add("kanaBig");
+
+  if (row.Kana && row.Kana !== main) {
+    promptSub.textContent = row.Kana;
+    show(promptSub);
+  } else {
+    hide(promptSub);
+  }
+
+  answerLabel.textContent = "Meaning";
+} else if (quizMode === "en2jp_kana") {
+
+  promptLabel.textContent = "Meaning";
+  promptText.textContent = row.Meaning || "—";
+
+  promptText.classList.remove("kanaBig");
+  hide(promptSub);
+
+  answerLabel.textContent = "Kana";
+}
+
+else if (quizMode === "en2jp_romaji") {
+
+  promptLabel.textContent = "Meaning";
+  promptText.textContent = row.Meaning || "—";
+
+  promptText.classList.remove("kanaBig");
+  hide(promptSub);
+
+  answerLabel.textContent = "Romanji";
+}
+
+    answerInput.value = "";
+    answerInput.placeholder = "comma-separated if multiple";
+    hide(boxAns);
+    awaitingNext = false;
+    bSubmit.disabled=false; bSkip.disabled=false; bReveal.disabled=false; bNext.disabled=true;
+    renderProgress();
+    answerInput.focus();
+  }
+
+  function updateRunningSummary(){
+    const sPct = attempted ? (strictCorrect/attempted*100).toFixed(1) : "0.0";
+    const pPct = totalFields ? (partialCorrect/totalFields*100).toFixed(1) : "0.0";
+    elSummary.innerHTML =
+      `Strictly correct&nbsp;: <strong>${strictCorrect}/${attempted} (${sPct}%)</strong><br>` +
+      `Partially correct: <strong>${partialCorrect}/${totalFields} (${pPct}%)</strong>`;
+  }
+
+  function showFinalResults(){
+    updateRunningSummary();
+    show(elFinalSummary);
+    const sPct = attempted ? (strictCorrect/attempted*100).toFixed(1) : "0.0";
+    const pPct = totalFields ? (partialCorrect/totalFields*100).toFixed(1) : "0.0";
+    elFinalSummary.innerHTML =
+      `<h2 style="margin:0 0 6px;">Final results</h2>
+       <div>Strictly correct&nbsp;: <strong>${strictCorrect}/${attempted} (${sPct}%)</strong></div>
+       <div>Partially correct: <strong>${partialCorrect}/${totalFields} (${pPct}%)</strong></div>`;
+    show(elFinalActions);
+    elFinalSummary.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+
+  function renderCompactFeedback({hits, extras, missing, gold}, forReveal=false){
+    const parts=[];
+    if (forReveal) {
+      if (gold.length) parts.push(`<span class="ok">✅ ${gold.join(", ")}</span>`);
+    } else {
+      if (hits.length) parts.push(`<span class="ok">✅ ${hits.join(", ")}</span>`);
+      if (extras.length) parts.push(`<span class="bad">❌ ${extras.join(", ")}</span>`);
+      if (missing.length) parts.push(`<span class="warn">⚠️ ${missing.join(", ")}</span>`);
+    }
+    feedbackLine.innerHTML = parts.join(" &nbsp;|&nbsp; ") || "—";
+    show(boxAns);
+    bSubmit.disabled=true; bSkip.disabled=true; bReveal.disabled=true; bNext.disabled=false;
+    awaitingNext = true;
+    updateRunningSummary();
+  }
+
+  function addIncorrect(row){
+    const key = `${row.Kana}||${row.Meaning}||${row.Romanji}`;
+    if (!incorrectSubset.__keys) incorrectSubset.__keys = new Set();
+    if (!incorrectSubset.__keys.has(key)) { incorrectSubset.__keys.add(key); incorrectSubset.push(row); }
+  }
+
+  // Buttons
+  bSubmit.addEventListener("click", () => {
+    const row=data[idx];
+    let lang, goldText;
+
+if (quizMode === "jp2en") {
+  lang = "en";
+  goldText = row.Meaning;
+}
+else if (quizMode === "en2jp_kana") {
+  lang = "jp";
+  goldText = row.Kana;
+}
+else {
+  lang = "jp";
+  goldText = row.Romanji;
+}
+    const comp = compareVariants(answerInput.value, goldText, lang);
+
+    // scoring
+    partialCorrect += comp.hits.length;
+    totalFields += comp.total;
+    const strictly = (comp.missing.length===0 && comp.extras.length===0);
+    attempted += 1;
+    if (strictly) strictCorrect += 1; else addIncorrect(row);
+
+    renderCompactFeedback(comp, false);
+  });
+
+  bSkip.addEventListener("click", () => {
+    const row=data[idx];
+    attempted += 1;
+    addIncorrect(row);
+
+    const goldText = (quizMode === "jp2en") ? row.Meaning : row.Romanji;
+    const comp = compareVariants("", goldText, (quizMode === "jp2en") ? "en" : "jp");
+    renderCompactFeedback(comp, true); // show ✅ expected only
+  });
+
+  bReveal.addEventListener("click", () => {
+    const row=data[idx];
+    const goldText = (quizMode === "jp2en") ? row.Meaning : row.Romanji;
+    const comp = compareVariants("", goldText, (quizMode === "jp2en") ? "en" : "jp");
+    renderCompactFeedback(comp, true); // show ✅ expected only
+  });
+
+  bNext.addEventListener("click", () => {
+    if (idx + 1 >= data.length) {
+      if (!autoRequizDone && incorrectSubset.length > 0) {
+        const subset = incorrectSubset.map(x => x); subset.__keys = undefined;
+        autoRequizDone = true;
+        elAutoNotice.textContent = `Re-quizzing ${subset.length} incorrect card(s)…`;
+        show(elAutoNotice);
+        startQuizWithSubset(subset);
+        return;
+      }
+      showFinalResults(); return;
+    }
+    idx += 1; renderCard();
+  });
+
+  btnRestartSame.addEventListener("click", () => { startQuizWithSubset(currentSubset); window.scrollTo({ top: 0, behavior: "smooth" }); });
+  btnChooseRange.addEventListener("click", () => {
+    hide(elQuiz); hide(elFinalSummary); hide(elFinalActions);
+    show(elPre); window.scrollTo({ top: 0, behavior: "smooth" });
+  });
+
+  // Enter-key behavior: on input, Enter submits; when feedback visible, Enter = Next
+  answerInput.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter") return;
+    if (awaitingNext && !bNext.disabled) { e.preventDefault(); bNext.click(); return; }
+    e.preventDefault(); bSubmit.click();
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter") return;
+    if (e.target === answerInput) return; // handled above
+    if (awaitingNext && !bNext.disabled) { e.preventDefault(); bNext.click(); }
+  });
+
+  /*** Init: default to XLSX ***/
+  (async function init(){
+    // Default selection = XLSX
+    document.querySelector('input[name="src"][value="xlsx"]').checked = true;
+    document.querySelector('input[name="src"][value="sheet"]').checked = false;
+
+    if (location.protocol === "file:") {
+      elSourceHint.innerHTML = `Opened via <code>file://</code>. Auto-loading <code>${LOCAL_XLSX_NAME}</code> is blocked. `
+        + `Please choose your XLSX below.`;
+    } else {
+      elSourceHint.textContent = `Attempting to auto-load "${LOCAL_XLSX_NAME}" from the same folder…`;
+    }
+    await onSourceChange();
+  })();
+</script>
+</body>
+</html>
