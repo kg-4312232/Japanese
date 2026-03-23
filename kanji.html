@@ -588,19 +588,12 @@
 
   /*** Init (default to XLSX mode) ***/
   (async function init(){
-    // Default selection = XLSX
-    document.querySelector('input[name="src"][value="xlsx"]').checked = true;
-    document.querySelector('input[name="src"][value="sheet"]').checked = false;
+    // Default selection = Google Sheets
+    document.querySelector('input[name="src"][value="xlsx"]').checked = false;
+    document.querySelector('input[name="src"][value="sheet"]').checked = true;
 
-    // Hint depending on protocol
-    if (location.protocol === "file:") {
-      elSourceHint.innerHTML = `Opened via <code>file://</code>. Auto-loading <code>${LOCAL_XLSX_NAME}</code> is blocked. `
-        + `Please choose the file below.`;
-    } else {
-      elSourceHint.textContent = `Attempting to auto-load "${LOCAL_XLSX_NAME}" from the same folder…`;
-    }
+    elSourceHint.textContent = "Loading Google Sheet…";
 
-    // Kick off source logic for XLSX
     await onSourceChange();
   })();
 </script>
