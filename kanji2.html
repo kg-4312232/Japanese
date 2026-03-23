@@ -1,0 +1,588 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Kanji Quiz (Sheet or Local XLSX)</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<style>
+  :root {
+    --bg:#0b0c10; --card:#121318; --text:#e8e8e8; --muted:#b8b8b8;
+    --accent:#7aa2f7; --ok:#98c379; --warn:#e5c07b; --bad:#e06c75; --divider:#2a2d34;
+  }
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);
+    font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;}
+  .container{max-width:800px;margin:0 auto;padding:16px;}
+  .card{background:var(--card);border-radius:16px;padding:16px;box-shadow:0 6px 20px rgba(0,0,0,.25);}
+  h1{font-size:1.4rem;margin:0 0 12px;}
+  input[type="text"],input[type="number"]{
+    width:min(100%,420px);max-width:100%;box-sizing:border-box;
+    padding:10px 12px;border-radius:10px;border:1px solid #30343b;
+    background:#0f1116;color:var(--text);font-size:16px;
+  }
+  .row{display:grid;grid-template-columns:150px 1fr;gap:8px;align-items:center;margin:6px 0;}
+  @media(max-width:560px){.row{grid-template-columns:1fr;}.row label{margin-bottom:4px;}}
+  .kanji{font-size:64px;text-align:center;line-height:1.1;margin:8px 0 4px;}
+  .examples{color:var(--muted);font-size:32px;line-height:1.5;white-space:pre-wrap;word-break:break-word;margin:0 0 10px 0;}
+  .muted{color:var(--muted);}
+  .buttons{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;}
+  button{padding:10px 14px;border-radius:12px;border:1px solid #2d3340;background:#1a1e27;color:var(--text);font-size:16px;cursor:pointer;}
+  button.primary{background:var(--accent);color:#0b0c10;border-color:transparent;}
+  button:disabled{opacity:.6;cursor:not-allowed;}
+  .divider{height:1px;background:var(--divider);margin:16px 0;}
+  .feedback{background:#10131a;border:1px dashed #2a2f3a;padding:10px 12px;border-radius:10px;margin-top:10px;}
+  .feed-row{display:grid;grid-template-columns:150px 1fr;gap:8px;margin:6px 0;}
+  .feed-row .label{color:var(--muted);}
+  .ok{color:var(--ok);} .warn{color:var(--warn);} .bad{color:var(--bad);}
+  .progress{display:flex;justify-content:space-between;color:var(--muted);font-size:14px;margin-top:6px;}
+  .summary{margin-top:14px;}
+  .topbar{display:flex;flex-direction:column;gap:8px;margin-bottom:12px;}
+  .small{font-size:13px;}
+  code{background:#0f1116;padding:2px 6px;border-radius:6px;border:1px solid #2d3340;}
+  .error{color:#e06c75;}
+  .radio{display:flex;gap:16px;align-items:center;flex-wrap:wrap;}
+  .pill{display:inline-block;background:#1a1e27;border:1px solid #2d3340;padding:6px 10px;border-radius:999px;}
+  .subgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+  .final-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;}
+  .notice{color:var(--muted);font-size:13px;margin-top:8px;}
+  .hidden{display:none !important;}
+</style>
+</head>
+<body>
+<div class="container">
+<div class="card">
+  <div class="topbar"><h1>Kanji Quiz</h1></div>
+
+  <div id="setup" class="small muted">Preparing…</div>
+
+  <!-- Range selector -->
+  <div id="range" class="hidden">
+    <div class="divider"></div>
+    <div class="small muted" id="rangeInfo">Rows available: —</div>
+
+    <div class="radio" style="margin-top:6px;">
+      <label><input type="radio" name="mode" value="all" checked> All</label>
+      <label><input type="radio" name="mode" value="range"> Range</label>
+    </div>
+
+    <div class="subgrid hidden" id="rangeInputs">
+      <div class="row"><label>From</label><input type="number" id="fromNum" min="1" step="1" placeholder="e.g. 45"></div>
+      <div class="row"><label>To</label><input type="number" id="toNum" min="1" step="1" placeholder="e.g. 54"></div>
+    </div>
+
+    <div class="buttons">
+      <button class="primary" id="startBtn">Start Quiz</button>
+    </div>
+  </div>
+
+  <!-- Quiz -->
+  <div id="quiz" class="hidden">
+    <div class="progress"><div id="counter"></div><div id="left"></div></div>
+    <div class="divider"></div>
+
+    <div class="row"><label>Kanji</label><div class="kanji" id="kanji">—</div></div>
+    <div id="examples" class="examples"></div>
+
+    <div class="row" id="row-onyomi"><label>Onyomi</label><input type="text" id="onyomi"></div>
+    <div class="row" id="row-kunyomi"><label>Kunyomi</label><input type="text" id="kunyomi"></div>
+    <div class="row"><label>Meaning</label><input type="text" id="meaning"></div>
+
+    <div class="buttons">
+      <button class="primary" id="submitBtn">Submit</button>
+      <button id="skipBtn">Skip</button>
+      <button id="revealBtn">Reveal</button>
+      <button id="nextBtn" disabled>Next</button>
+    </div>
+
+    <div id="answers" class="feedback hidden">
+      <div class="feed-row" id="feed-onyomi"><div class="label">Onyomi</div><div id="ans-onyomi">—</div></div>
+      <div class="feed-row" id="feed-kunyomi"><div class="label">Kunyomi</div><div id="ans-kunyomi">—</div></div>
+      <div class="feed-row"><div class="label">Meaning</div><div id="ans-meaning">—</div></div>
+    </div>
+
+    <div class="divider"></div>
+    <div class="summary small" id="summary"></div>
+
+    <div class="divider"></div>
+    <div class="summary hidden" id="finalSummary"></div>
+    <div class="final-actions hidden" id="finalActions">
+      <button class="primary" id="restartSameBtn">Restart same test</button>
+      <button id="chooseRangeBtn">Choose different range</button>
+    </div>
+    <div class="notice hidden" id="autoNotice"></div>
+  </div>
+</div>
+</div>
+
+<!-- SheetJS for XLSX parsing -->
+<!-- Try local copy first -->
+<script src="./xlsx.full.min.js"></script>
+<!-- If local file isn’t there, fall back to CDN (online only) -->
+<script>
+  if (typeof XLSX === "undefined") {
+    document.write('<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"><\/script>');
+  }
+</script>
+
+<script>
+  /*** CONFIG ***/
+  const DEFAULT_PUBHTML =
+    "https://docs.google.com/spreadsheets/d/e/2PACX-1vSspcXYobnusfz9iH7Lby8BjKRy2u1dJN7c5m9cFZamGZtodi0cdDDtTMwQplFJ4IPeTG4lwIFmU_pT/pubhtml?gid=0&single=true";
+  const qs = new URLSearchParams(location.search);
+  const INPUT_URL = qs.get("url") || DEFAULT_PUBHTML;
+  const LOCAL_XLSX_NAME = "Kanji.xlsx"; // auto-load when served over http/https
+
+  /*** Elements ***/
+  const $ = id => document.getElementById(id);
+  const elSource = $("sourceSection"), elSourceHint = $("sourceHint");
+  const xlsxPickerRow = $("xlsxPicker"), xlsxInput = $("xlsxFile");
+  const elSetup = $("setup"), elRange = $("range"), elRangeInfo = $("rangeInfo"),
+        elRangeInputs = $("rangeInputs"), inFrom = $("fromNum"), inTo = $("toNum"), btnStart = $("startBtn");
+  const elQuiz = $("quiz"), elKanji = $("kanji"), elExamples = $("examples"),
+        elRowOnyomi = $("row-onyomi"), elRowKunyomi = $("row-kunyomi");
+  const elCounter = $("counter"), elLeft = $("left");
+  const inOn = $("onyomi"), inKun = $("kunyomi"), inMean = $("meaning");
+  const bSubmit = $("submitBtn"), bSkip = $("skipBtn"), bReveal = $("revealBtn"), bNext = $("nextBtn");
+  const boxAns = $("answers"), feedOnRow = $("feed-onyomi"), feedKunRow = $("feed-kunyomi"),
+        feedOn = $("ans-onyomi"), feedKun = $("ans-kunyomi"), feedMean = $("ans-meaning");
+  const elSummary = $("summary"), elFinalSummary = $("finalSummary"), elFinalActions = $("finalActions"),
+        btnRestartSame = $("restartSameBtn"), btnChooseRange = $("chooseRangeBtn"), elAutoNotice = $("autoNotice");
+
+  /*** Utils ***/
+  const hide = el => el.classList.add("hidden");
+  const show = el => el.classList.remove("hidden");
+  const isVisible = el => !!(el && el.offsetParent !== null);
+
+  /*** CSV fetch helpers (Google Sheet) ***/
+  function toCsvCandidates(u) {
+    try {
+      const url = new URL(u);
+      const gid = url.searchParams.get("gid") || "0";
+      const isPubHtml = url.pathname.endsWith("/pubhtml");
+      const isPub = url.pathname.endsWith("/pub");
+      const isExport = url.pathname.endsWith("/export");
+      let c1, c2;
+      if (isPubHtml) {
+        c1 = `${url.origin}${url.pathname.replace(/\/pubhtml$/, "/pub")}?output=csv&gid=${gid}`;
+        c2 = `${url.origin}${url.pathname.replace(/\/pubhtml$/, "/export")}?format=csv&gid=${gid}`;
+      } else if (isPub) {
+        c1 = `${url.origin}${url.pathname}?output=csv&gid=${gid}`;
+        c2 = `${url.origin}${url.pathname.replace(/\/pub$/, "/export")}?format=csv&gid=${gid}`;
+      } else if (isExport) {
+        c1 = `${url.origin}${url.pathname}?format=csv&gid=${gid}`;
+        c2 = c1;
+      } else {
+        const parts = url.pathname.split("/");
+        const i = parts.indexOf("d");
+        const docId = parts[i + 1];
+        c1 = `${url.origin}/spreadsheets/d/${docId}/export?format=csv&gid=${gid}`;
+        c2 = c1;
+      }
+      return [c1, c2];
+    } catch { return [u]; }
+  }
+  function proxyCandidates(u) {
+    return [
+      `https://r.jina.ai/http://${u.replace(/^https?:\/\//, "")}`,
+      `https://r.jina.ai/https://${u.replace(/^https?:\/\//, "")}`,
+      `https://cors.isomorphic-git.org/${u}`
+    ];
+  }
+  async function fetchTextOnce(u) {
+    const r = await fetch(u, { cache: "no-cache" });
+    if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
+    return await r.text();
+  }
+  async function fetchCsvWithFallback(u) {
+    const [c1, c2] = toCsvCandidates(u);
+    try { return await fetchTextOnce(c1); } catch {}
+    try { return await fetchTextOnce(c2); } catch {}
+    for (const p of proxyCandidates(c1)) { try { return await fetchTextOnce(p); } catch {} }
+    for (const p of proxyCandidates(c2)) { try { return await fetchTextOnce(p); } catch {} }
+    throw new Error("Could not fetch CSV via pub/export or proxies.");
+  }
+
+  /*** Parsers & comparers ***/
+  function normalize(s){return (s||"").toString().trim().toLowerCase().replace(/[、  ，]/g,",").replace(/[；;]/g,";").replace(/\s+/g," ")}
+  function splitVariants(s){s=normalize(s); if(!s) return []; return s.split(/[;,]/).map(x=>x.trim()).filter(Boolean)}
+  function compareVariants(userText,goldText){
+    const gold=splitVariants(goldText), user=splitVariants(userText), ns=x=>x.replace(/\s+/g,"");
+    const gm=new Map(gold.map(g=>[ns(g),g])), um=new Map(user.map(u=>[ns(u),u]));
+    const hits=[], missing=[], extras=[];
+    for(const [k,u] of um) if(gm.has(k)) hits.push(u); else extras.push(u);
+    for(const [k,g] of gm) if(!um.has(k)) missing.push(g);
+    return {hits, missing, extras, total: gold.length};
+  }
+  function hasReadings(val){const s=(val==null?"":String(val)).trim(); return !!(s && !/^[-–—ー]+$/.test(s))}
+  function parseCSV(text){
+    const rows=[]; let cur=[], field="", q=false;
+    for(let i=0;i<text.length;i++){
+      const ch=text[i];
+      if(q){ if(ch=='"'){ if(text[i+1]=='"'){field+='"'; i++;} else {q=false;} } else field+=ch; }
+      else { if(ch=='"') q=true; else if(ch==","){cur.push(field); field="";}
+             else if(ch=="\n"){cur.push(field); rows.push(cur); cur=[]; field="";}
+             else if(ch=="\r"){} else field+=ch; }
+    }
+    if(field.length||cur.length){cur.push(field); rows.push(cur);} return rows;
+  }
+  function sheetRowsToObjects(rows){
+    if(!rows.length) return [];
+    const headers=rows[0].map(h=>String(h||"").trim());
+    const idxCol=n=>headers.findIndex(h=>h.toLowerCase()===n.toLowerCase());
+    const iK=idxCol("Kanji"), iO=idxCol("Onyomi"), iKu=idxCol("Kunyomi"), iM=idxCol("Meaning"), iE=idxCol("Examples");
+    if([iK,iO,iKu,iM].some(i=>i<0)) throw new Error("Missing required columns: Kanji, Onyomi, Kunyomi, Meaning");
+    const out=[];
+    for(let r=1;r<rows.length;r++){
+      const row=rows[r]; if(!row||!row.length) continue;
+      const rec={
+        Kanji:(row[iK]??"").toString().trim(),
+        Onyomi:(row[iO]??"").toString(),
+        Kunyomi:(row[iKu]??"").toString(),
+        Meaning:(row[iM]??"").toString(),
+        Examples: iE>=0 ? (row[iE]??"").toString() : ""
+      };
+      if(rec.Kanji) out.push(rec);
+    }
+    return out;
+  }
+  function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a;}
+
+  /*** State ***/
+  let fullData = [], currentSubset = [], data = [], incorrectSubset = [];
+  let idx = -1;
+  let strictCorrect = 0, attempted = 0, partialCorrect = 0, totalFields = 0;
+  let awaitingNext = false, autoRequizDone = false;
+
+  /*** Range UI ***/
+  document.querySelectorAll('input[name="mode"]').forEach(r => {
+    r.addEventListener("change", () => {
+      (r.value === "range" && r.checked) ? show(elRangeInputs) : hide(elRangeInputs);
+    });
+  });
+
+  /*** Source selection (no change after load) ***/
+  document.querySelectorAll('input[name="src"]').forEach(r => {
+    r.addEventListener("change", onSourceChange);
+  });
+
+  async function onSourceChange() {
+    const mode = document.querySelector('input[name="src"]:checked')?.value || "xlsx";
+    if (mode === "xlsx") {
+      const isFile = location.protocol === "file:";
+      elSourceHint.textContent = isFile
+        ? "Opened via file:// — browsers block auto-reading sibling files. Please pick Kanji.xlsx below."
+        : `Attempting to auto-load "${LOCAL_XLSX_NAME}" from the same folder…`;
+      show(xlsxPickerRow); // show picker as fallback / manual
+      if (!isFile) {
+        try {
+          await loadXlsxFromUrl(LOCAL_XLSX_NAME);
+          finalizeSourceChoice(); // hide source UI once loaded
+          return;
+        } catch (e) {
+          console.warn("Auto-fetch Kanji.xlsx failed:", e);
+          elSourceHint.innerHTML = `Couldn’t auto-load <code>${LOCAL_XLSX_NAME}</code>. Please choose the file manually.`;
+        }
+      }
+      // Wait for manual file selection
+      show(elSource);
+    } else {
+      hide(xlsxPickerRow);
+      elSourceHint.textContent = "";
+      await loadGoogleSheet();
+      finalizeSourceChoice(); // hide source UI once loaded
+    }
+  }
+
+  function finalizeSourceChoice() {
+    // Hide the entire source picker permanently for this session
+    elSource.remove();
+  }
+
+  /*** Loaders ***/
+  function showRange() {
+    hide(elSetup);
+    show(elRange);
+    elRangeInfo.textContent = `Rows available: 1 – ${fullData.length}`;
+    inFrom.min = 1; inFrom.max = fullData.length;
+    inTo.min = 1;   inTo.max = fullData.length;
+  }
+  function failSetup(msg){
+    elSetup.innerHTML = `<div class="error">${msg}</div>`;
+    hide(elRange);
+  }
+
+  async function loadGoogleSheet(){
+    try{
+      show(elSetup); elSetup.textContent = "Loading Google Sheet…";
+      const text = await fetchCsvWithFallback(INPUT_URL);
+      const rows = parseCSV(text);
+      fullData = sheetRowsToObjects(rows);
+      if (!fullData.length) throw new Error("No data rows found.");
+      showRange();
+    }catch(e){
+      console.error(e);
+      const isFile = location.protocol === "file:";
+      failSetup(
+        `Failed to load Google Sheet${isFile ? " (opening via file:// can block network requests)" : ""}. `
+        + `You can reload and choose “Local XLSX”.`
+      );
+    }
+  }
+
+  async function loadXlsxFromUrl(url){
+    show(elSetup); elSetup.textContent = `Loading ${url}…`;
+    const resp = await fetch(url, { cache: "no-cache" });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const buf = await resp.arrayBuffer();
+    parseXlsxBuffer(buf);
+    showRange();
+  }
+
+  function parseXlsxBuffer(buf){
+    const wb = XLSX.read(buf, { type: "array" });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(ws, { header: 1, blankrows: false, defval: "" });
+    fullData = sheetRowsToObjects(rows);
+    if (!fullData.length) throw new Error("No data rows found in the first sheet.");
+  }
+
+  // Manual file selection
+  xlsxInput.addEventListener("change", async (ev)=>{
+    const f = ev.target.files?.[0];
+    if (!f) return;
+    try {
+      show(elSetup); elSetup.textContent = "Reading .xlsx…";
+      const buf = await f.arrayBuffer();
+      parseXlsxBuffer(buf);
+      finalizeSourceChoice();
+      showRange();
+    } catch (e) {
+      console.error(e);
+      failSetup("Could not read the .xlsx file. Ensure the first sheet has headers: Kanji, Onyomi, Kunyomi, Meaning, Examples.");
+    }
+  });
+
+  /*** Start & quiz flow ***/
+  btnStart.addEventListener("click", () => {
+    const mode = document.querySelector('input[name="mode"]:checked')?.value || "all";
+    let subset = fullData.slice();
+    if (mode === "range") {
+      const total = fullData.length;
+      const fromVal = parseInt(inFrom.value, 10);
+      const toVal = parseInt(inTo.value, 10);
+      if (!Number.isInteger(fromVal) || !Number.isInteger(toVal) || fromVal < 1 || toVal < 1 || fromVal > toVal) {
+        alert("Please enter a valid range like 45–54 (From ≤ To, both ≥ 1).");
+        return;
+      }
+      const fromIdx = Math.max(0, fromVal - 1);
+      const toIdx = Math.min(total - 1, toVal - 1);
+      if (fromIdx > toIdx) { alert("Range is outside available rows."); return; }
+      subset = fullData.slice(fromIdx, toIdx + 1);
+    }
+    autoRequizDone = false;
+    startQuizWithSubset(subset);
+  });
+
+  function startQuizWithSubset(subset){
+    currentSubset = subset.slice();
+    data = shuffle(subset.slice());
+    incorrectSubset = [];
+    if (!data.length) { alert("No rows selected."); return; }
+
+    strictCorrect = 0; attempted = 0; partialCorrect = 0; totalFields = 0;
+    hide(elRange);
+    show(elQuiz);
+    hide(elFinalSummary); elFinalSummary.innerHTML = "";
+    hide(elFinalActions);
+    hide(elAutoNotice);
+    idx = 0;
+    renderCard();
+  }
+
+  function addIncorrect(row){
+    const key = `${row.Kanji}||${row.Meaning}`;
+    if (!incorrectSubset.__keys) incorrectSubset.__keys = new Set();
+    if (!incorrectSubset.__keys.has(key)) { incorrectSubset.__keys.add(key); incorrectSubset.push(row); }
+  }
+
+  function renderProgress(){ elCounter.textContent=`Card ${idx+1} of ${data.length}`; elLeft.textContent=`${data.length-(idx+1)} left`; }
+
+  function renderCard(){
+    const row=data[idx];
+    const askOn=hasReadings(row.Onyomi);
+    const askKun=hasReadings(row.Kunyomi);
+    const hasEx=hasReadings(row.Examples);
+
+    elKanji.textContent=row.Kanji || "—";
+    if (hasEx) { show(elExamples); elExamples.textContent = row.Examples; }
+    else { hide(elExamples); elExamples.textContent = ""; }
+
+    elRowOnyomi.style.display = askOn ? "" : "none";
+    elRowKunyomi.style.display = askKun ? "" : "none";
+
+    inOn.value=""; inKun.value=""; inMean.value="";
+    hide(boxAns);
+
+    feedOnRow.style.display = askOn ? "" : "none";
+    feedKunRow.style.display = askKun ? "" : "none";
+
+    awaitingNext = false;
+    bSubmit.disabled=false; bSkip.disabled=false; bReveal.disabled=false; bNext.disabled=true;
+    renderProgress();
+
+    if (askOn) inOn.focus();
+    else if (askKun) inKun.focus();
+    else inMean.focus();
+  }
+
+  function updateRunningSummary(){
+    const sPct = attempted ? (strictCorrect/attempted*100).toFixed(1) : "0.0";
+    const pPct = totalFields ? (partialCorrect/totalFields*100).toFixed(1) : "0.0";
+    elSummary.innerHTML =
+      `Strictly correct&nbsp;: <strong>${strictCorrect}/${attempted} (${sPct}%)</strong><br>` +
+      `Partially correct: <strong>${partialCorrect}/${totalFields} (${pPct}%)</strong>`;
+  }
+
+  function showFinalResults(){
+    updateRunningSummary();
+    show(elFinalSummary);
+    const sPct = attempted ? (strictCorrect/attempted*100).toFixed(1) : "0.0";
+    const pPct = totalFields ? (partialCorrect/totalFields*100).toFixed(1) : "0.0";
+    elFinalSummary.innerHTML =
+      `<h2 style="margin:0 0 6px;">Final results</h2>
+       <div>Strictly correct&nbsp;: <strong>${strictCorrect}/${attempted} (${sPct}%)</strong></div>
+       <div>Partially correct: <strong>${partialCorrect}/${totalFields} (${pPct}%)</strong></div>`;
+    show(elFinalActions);
+    elFinalSummary.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+
+  function renderFeedback(aOn,aKun,aMean,reveal=false){
+    const row=data[idx], askOn=hasReadings(row.Onyomi), askKun=hasReadings(row.Kunyomi);
+    const on=compareVariants(aOn,row.Onyomi), kun=compareVariants(aKun,row.Kunyomi), mean=compareVariants(aMean,row.Meaning);
+
+    if(askOn){ partialCorrect+=on.hits.length; totalFields+=on.total; }
+    if(askKun){ partialCorrect+=kun.hits.length; totalFields+=kun.total; }
+    partialCorrect+=mean.hits.length; totalFields+=mean.total;
+
+    const okOn=!askOn||(on.missing.length===0&&on.extras.length===0),
+          okKun=!askKun||(kun.missing.length===0&&kun.extras.length===0),
+          okMean=(mean.missing.length===0&&mean.extras.length===0),
+          allOk=okOn&&okKun&&okMean;
+
+    if(!reveal){
+      attempted+=1;
+      if(allOk) strictCorrect+=1; else addIncorrect(row);
+    }
+
+    const fmt=o=>{
+      const p=[];
+      if(o.hits.length) p.push(`<span class="ok">✅ ${o.hits.join(", ")}</span>`);
+      if(o.extras.length) p.push(`<span class="bad">❌ ${o.extras.join(", ")}</span>`);
+      if(o.missing.length) p.push(`<span class="warn">⚠️ ${o.missing.join(", ")}</span>`);
+      return p.join(" &nbsp;|&nbsp; ")||"—";
+    };
+
+    if (askOn) feedOn.innerHTML = fmt(on);
+    if (askKun) feedKun.innerHTML = fmt(kun);
+    feedMean.innerHTML = fmt(mean);
+
+    show(boxAns);
+    bSubmit.disabled=true; bSkip.disabled=true; bReveal.disabled=true; bNext.disabled=false;
+
+    awaitingNext = true;
+    updateRunningSummary();
+  }
+
+  // Buttons
+  bSubmit.addEventListener("click", () => {
+    const row=data[idx], askOn=hasReadings(row.Onyomi), askKun=hasReadings(row.Kunyomi);
+    renderFeedback(askOn?inOn.value:"", askKun?inKun.value:"", inMean.value, false);
+  });
+  bSkip.addEventListener("click", () => {
+    attempted+=1; addIncorrect(data[idx]);
+    bSubmit.disabled=true; bSkip.disabled=true; bReveal.disabled=true; bNext.disabled=false;
+
+    const dash=t=>({hits:[],extras:[],missing:splitVariants(t),total:splitVariants(t).length}), row=data[idx];
+    const dOn=dash(row.Onyomi), dKun=dash(row.Kunyomi), dMean=dash(row.Meaning);
+    if (hasReadings(row.Onyomi)) feedOn.innerHTML = dOn.missing.length ? `<span class="warn">⚠️ ${dOn.missing.join(", ")}</span>` : "—";
+    if (hasReadings(row.Kunyomi)) feedKun.innerHTML = dKun.missing.length ? `<span class="warn">⚠️ ${dKun.missing.join(", ")}</span>` : "—";
+    feedMean.innerHTML = dMean.missing.length ? `<span class="warn">⚠️ ${dMean.missing.join(", ")}</span>` : "—";
+    show(boxAns);
+
+    awaitingNext = true;
+    updateRunningSummary();
+  });
+  bReveal.addEventListener("click", () => {
+    const row=data[idx], showAll=t=>splitVariants(t).join(", ")||"—";
+    if (hasReadings(row.Onyomi)) feedOn.innerHTML = `<span class="ok">✅ ${showAll(row.Onyomi)}</span>`;
+    if (hasReadings(row.Kunyomi)) feedKun.innerHTML = `<span class="ok">✅ ${showAll(row.Kunyomi)}</span>`;
+    feedMean.innerHTML = `<span class="ok">✅ ${showAll(row.Meaning)}</span>`;
+    show(boxAns);
+    bSubmit.disabled=true; bSkip.disabled=true; bReveal.disabled=true; bNext.disabled=false;
+    awaitingNext = true;
+    updateRunningSummary();
+  });
+  bNext.addEventListener("click", () => {
+    if (idx + 1 >= data.length) {
+      if (!autoRequizDone && incorrectSubset.length > 0) {
+        const subset = incorrectSubset.map(x => x); subset.__keys = undefined;
+        autoRequizDone = true;
+        elAutoNotice.textContent = `Re-quizzing ${subset.length} incorrect card(s)…`;
+        show(elAutoNotice);
+        startQuizWithSubset(subset);
+        return;
+      }
+      showFinalResults(); return;
+    }
+    idx += 1; renderCard();
+  });
+
+  btnRestartSame.addEventListener("click", () => { startQuizWithSubset(currentSubset); window.scrollTo({ top: 0, behavior: "smooth" }); });
+  btnChooseRange.addEventListener("click", () => {
+    hide(elQuiz); hide(elFinalSummary); hide(elFinalActions);
+    show(elRange); window.scrollTo({ top: 0, behavior: "smooth" });
+  });
+
+  // Enter-key navigation
+  function handleEnterNav(e) {
+    if (e.key !== "Enter") return;
+    if (awaitingNext && !bNext.disabled) { e.preventDefault(); e.stopPropagation(); bNext.click(); return; }
+    const target = e.target;
+    if (target === inOn) {
+      e.preventDefault(); e.stopPropagation();
+      if (isVisible(elRowKunyomi)) inKun.focus();
+      else if (isVisible(inMean)) inMean.focus();
+      else bSubmit.click();
+    } else if (target === inKun) {
+      e.preventDefault(); e.stopPropagation();
+      if (isVisible(inMean)) inMean.focus();
+      else bSubmit.click();
+    } else if (target === inMean) {
+      bSubmit.click();
+    }
+  }
+  inOn.addEventListener("keydown", handleEnterNav);
+  inKun.addEventListener("keydown", handleEnterNav);
+  inMean.addEventListener("keydown", handleEnterNav);
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter") return;
+    if (e.defaultPrevented) return;
+    if (awaitingNext && !bNext.disabled) { e.preventDefault(); bNext.click(); }
+  });
+
+  /*** Init (default to XLSX mode) ***/
+(async function init(){
+  try {
+    show(elSetup);
+    elSetup.textContent = "Loading Google Sheet…";
+
+    await loadGoogleSheet();
+
+  } catch (e) {
+    console.error(e);
+
+    failSetup("Error loading sheet: " + (e.message || e));
+  }
+})();
+</script>
+</body>
+</html>
