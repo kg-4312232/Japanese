@@ -78,8 +78,8 @@
     <div class="radio" style="margin-top:6px;">
   <label><input type="radio" name="mode" value="all" checked> All</label>
   <label><input type="radio" name="mode" value="range"> Range</label>
-  <label><input type="radio" name="mode" value="green"> Green (☑ known)</label>
-  <label><input type="radio" name="mode" value="blue"> Blue (⃝ studying)</label>
+  <label><input type="radio" name="mode" value="green"> Green</label>
+  <label><input type="radio" name="mode" value="blue"> Blue</label>
 </div>
 
     <div class="subgrid hidden" id="rangeInputs">
@@ -384,36 +384,30 @@
   /*** Start & quiz flow ***/
   btnStart.addEventListener("click", () => {
     const mode = document.querySelector('input[name="mode"]:checked')?.value || "all";
+    
     let subset = fullData.slice();
-
-if (mode === "range") {
-  const total = fullData.length;
-  const fromVal = parseInt(inFrom.value, 10);
-  const toVal = parseInt(inTo.value, 10);
-
-  if (!Number.isInteger(fromVal) || !Number.isInteger(toVal) || fromVal < 1 || toVal < 1 || fromVal > toVal) {
-    alert("Please enter a valid range like 45–54 (From ≤ To, both ≥ 1).");
-    return;
-  }
-
-  const fromIdx = Math.max(0, fromVal - 1);
-  const toIdx = Math.min(total - 1, toVal - 1);
-
-  if (fromIdx > toIdx) {
-    alert("Range is outside available rows.");
-    return;
-  }
-
-  subset = fullData.slice(fromIdx, toIdx + 1);
-}
-
-else if (mode === "green") {
-  subset = fullData.filter(x => x.Class.includes("☑"));
+    if (mode === "range") {
+      const total = fullData.length;
+      const fromVal = parseInt(inFrom.value, 10);
+      const toVal = parseInt(inTo.value, 10);
+      if (!Number.isInteger(fromVal) || !Number.isInteger(toVal) || fromVal < 1 || toVal < 1 || fromVal > toVal) {
+        alert("Please enter a valid range like 45–54 (From ≤ To, both ≥ 1).");
+        return;
+      }
+      const fromIdx = Math.max(0, fromVal - 1);
+      const toIdx = Math.min(total - 1, toVal - 1);
+      if (fromIdx > toIdx) { alert("Range is outside available rows."); return; }
+      subset = fullData.slice(fromIdx, toIdx + 1);
+    }
+    
+    else if (mode === "green") {
+  subset = fullData.filter(x => x.Class.includes("O"));
 }
 
 else if (mode === "blue") {
-  subset = fullData.filter(x => x.Class.includes("⃝"));
+  subset = fullData.filter(x => x.Class.includes("X"));
 }
+    
     autoRequizDone = false;
     startQuizWithSubset(subset);
   });
